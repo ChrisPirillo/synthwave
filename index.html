@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Synthboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Montserrat:wght@400;500&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Basic styling for the page */
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #0B0B0B;
+            color: #e8e8e8;
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh;
+            margin: 0;
+            padding: 0; 
+            box-sizing: border-box;
+            overflow: hidden; 
+        }
+
+        .page-header { 
+            width: auto; 
+            max-width: 95%; 
+            padding: 10px 15px;
+            box-sizing: border-box;
+            text-align: center; 
+            position: relative; 
+            z-index: 10; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+        }
+        
+        /* Styling for the main title */
+        h1 {
+            font-family: 'Press Start 2P', cursive; 
+            color: #32FF32; 
+            text-shadow: 0 0 5px #32FF32, 0 0 10px #32FF32, 0 0 15px #00AA00; 
+            margin-top: 15px; 
+            margin-bottom: 10px; 
+            text-align: center;
+            font-size: clamp(2em, 6vw, 3em); 
+            white-space: nowrap;
+            letter-spacing: 1px;
+            text-transform: uppercase; 
+        }
+
+        /* Styling for the instructional paragraph */
+        p.instructions {
+            font-family: 'Press Start 2P', cursive; 
+            font-weight: normal; 
+            text-align: center;
+            margin-bottom: 15px; 
+            max-width: 100%; 
+            line-height: 1.4; 
+            color: #32FF32;  
+            font-size: clamp(0.7em, 2.5vw, 0.85em); 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 0 0 3px #32FF32;
+            text-transform: uppercase; 
+        }
+
+        /* Styling for the canvas visualizer - now always fullscreen-capable */
+        #canvasVisualizer {
+            background-color: #1A1A1A; 
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            border-radius: 0; 
+            margin-bottom: 0;
+            z-index: 0; 
+        }
+        
+        /* Hiding UI elements on interaction */
+        .interaction-started .page-header { 
+            display: none !important; 
+        }
+        
+        /* Terminal Window (Desktop Only) */
+        #terminalWindow {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 700px;
+            height: 160px; 
+            background-color: rgba(10, 20, 10, 0.75); 
+            border: 1.5px solid #00FF00; 
+            border-radius: 5px;
+            box-shadow: 0 0 25px rgba(0, 255, 0, 0.5); 
+            padding: 10px; 
+            box-sizing: border-box;
+            /* display: none;  Initially hidden, JS will show it */
+            z-index: 20; 
+            overflow: hidden; 
+            backdrop-filter: blur(3px); 
+            display: flex; 
+            flex-direction: column; 
+        }
+        #terminalWindow::before { /* Scanlines effect */
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: repeating-linear-gradient(
+                to bottom,
+                transparent,
+                transparent 1.5px, 
+                rgba(0, 255, 0, 0.15) 1.5px,  
+                rgba(0, 255, 0, 0.15) 3px 
+            );
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #terminalOutputContainer { 
+            flex-grow: 1; 
+            overflow-y: auto; 
+            position: relative; 
+            z-index: 2; 
+            padding: 8px; 
+            line-height: 1.6; 
+        }
+
+        #terminalOutput {
+            font-family: 'Press Start 2P', monospace; 
+            color: #00FF00; 
+            font-size: 14px; 
+            text-transform: uppercase;
+            white-space: pre-wrap; 
+            word-break: break-all;
+            display: inline; 
+        }
+        .blinking-cursor-char {
+            display: inline; 
+            animation: blink 1s step-end infinite;
+            color: #00FF00;
+            font-weight: bold; 
+            margin-left: 1px; 
+            vertical-align: baseline; 
+        }
+        @keyframes blink { 
+            50% { opacity: 0; } 
+        }
+
+
+        .terminal-buttons-container {
+            display: flex;
+            justify-content: space-between; 
+            align-items: center; 
+            z-index: 3;
+            gap: 10px; 
+            padding: 0 10px 10px 10px; 
+            flex-shrink: 0; 
+        }
+        #clearButton, #exportButton, #pirilloButton { /* Desktop terminal buttons */
+            font-family: 'Press Start 2P', monospace;
+            background-color: #00FF00; 
+            color: #0B0B0B;
+            border: none;
+            padding: 7px 10px; 
+            font-size: 9px; 
+            cursor: pointer;
+            border-radius: 3px;
+            transition: background-color 0.2s, color 0.2s, transform 0.1s;
+            flex-grow: 0; 
+            flex-shrink: 0; 
+            flex-basis: auto; 
+            text-align: center;
+        }
+
+        #clearButton:hover, #exportButton:hover, #pirilloButton:hover {
+            filter: brightness(1.2);
+            transform: scale(1.03);
+        }
+         #clearButton:active, #exportButton:active, #pirilloButton:active {
+            transform: scale(0.97);
+            filter: brightness(0.9);
+        }
+
+        /* Mobile-specific @CHRISPIRILLO button */
+        #mobileChrispirilloButton {
+            display: none; /* Hidden by default, shown by JS for mobile */
+            font-family: 'Press Start 2P', monospace;
+            background-color: #00FF00; /* Neon Green */
+            color: #0B0B0B; /* Dark text for contrast */
+            border: 1px solid #00DD00; /* Slightly darker green border */
+            padding: 10px 15px;
+            font-size: 10px; /* Adjusted for consistency */
+            cursor: pointer;
+            border-radius: 8px;
+            position: fixed;
+            bottom: 20px; /* Consistent with terminal bottom */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 15; 
+            box-shadow: 0 0 10px #00FF00, 0 0 20px #00FF00; /* Green glow */
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        #mobileChrispirilloButton:hover {
+            background-color: #32FF32; /* Lighter green on hover */
+            box-shadow: 0 0 15px #00FF00, 0 0 30px #00FF00;
+            transform: translateX(-50%) scale(1.03);
+        }
+         #mobileChrispirilloButton:active {
+            transform: translateX(-50%) scale(0.98);
+            background-color: #00DD00;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <h1>SYNTHBOARD</h1> 
+        <p class="instructions">START TYPING OR TAP TO PLAY!</p> </div>
+
+    <canvas id="canvasVisualizer"></canvas> 
+
+    <div id="terminalWindow">
+        <div id="terminalOutputContainer">
+            <span id="terminalOutput"></span><span class="blinking-cursor-char" id="terminalCursor">_</span>
+        </div>
+        <div class="terminal-buttons-container">
+            <button id="clearButton">CLEAR</button>
+            <button id="pirilloButton" onclick="window.open('https://chrispirillo.bio.link/', '_blank')">@CHRISPIRILLO</button>
+            <button id="exportButton">EXPORT AUDIO</button>
+        </div>
+    </div>
+
+    <button id="mobileChrispirilloButton" onclick="window.open('https://chrispirillo.bio.link/', '_blank')">@CHRISPIRILLO</button>
+    
+    <script>
+        // DOM Element References
+        const pageHeader = document.querySelector('.page-header');
+        const canvas = document.getElementById('canvasVisualizer');
+        const canvasCtx = canvas.getContext('2d');
+        const body = document.body;
+        const terminalWindow = document.getElementById('terminalWindow');
+        const terminalOutput = document.getElementById('terminalOutput');
+        const terminalCursor = document.getElementById('terminalCursor'); 
+        const terminalOutputContainer = document.getElementById('terminalOutputContainer');
+        const exportButton = document.getElementById('exportButton');
+        const clearButton = document.getElementById('clearButton');
+        const mobileChrispirilloButton = document.getElementById('mobileChrispirilloButton');
+
+        // Constants
+        const VISUALIZER_STYLES = [
+            'gradientBars', 'glowBars', 'topLines', 'circlePulse', 'waveForm', 
+            'mirroredBars', 'radialBars', 'filledWaveForm', 'dotGrid', 'starBurst',
+            'ringSpectrum', 'dancingParticles', 'spiralGalaxy', 'tunnelVision', 'blockWave',
+            'equalizerPillars', 'cometTail', 'bouncingBalls', 'waterRipples', 'abstractLines',
+            'neonGridWave', 'frequencyFlower', 'orbSpectrum', 'stackedLines', 'pixelExplosion'
+        ]; 
+        const DESKTOP_BREAKPOINT = 768; 
+
+        // Web Audio API Variables
+        let audioContext;
+        let analyserNode;
+        let visualizerDataArray;
+        let waveFormDataArray;
+        let animationFrameId;
+        let currentPlayingRecipe = null;
+        let idleWavePhase = 0;
+        let idleWaveSpeed = 0.035;
+        let isDesktopView = false; 
+        let interactionStarted = false; 
+
+        // Audio Recording (Desktop)
+        let mediaRecorder;
+        let recordedChunks = [];
+        let mainBus; 
+
+        // --- Canvas Setup ---
+        function setupCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        // --- Helper Functions ---
+        function getRandomFloat(min, max) { return Math.random() * (max - min) + min; }
+        function getRandomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+        function getRandomElement(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+        function parseHSL(hslStr) { if (!hslStr) return null; const r = hslStr.match(/hsl\((\d+\.?\d*),\s*(\d+)%,\s*(\d+)%\)/); if (r) return { h: parseFloat(r[1]), s: parseInt(r[2]), l: parseInt(r[3]) }; return null; }
+        function getUniqueRandomHSLColor(existingHues, saturation = 70, lightness = 60, minHueDiff = 15) { let h; let att = 0; do { h = Math.random()*360; att++; const tC = existingHues.some(eH => Math.abs(eH-h)<minHueDiff || Math.abs(eH-h)>(360-minHueDiff)); if(!tC||att>50){ existingHues.push(h); return `hsl(${h.toFixed(0)},${saturation}%,${lightness}%)`; }} while(true); }
+        
+        // --- Sound Recipe Generation (Classic Computer/Square Wave Focus) ---
+        function createRandomSoundRecipe(usedHues) { 
+            const baseColor = getUniqueRandomHSLColor(usedHues, getRandomInt(65, 95), getRandomInt(55, 75));
+            const vizStyle = getRandomElement(VISUALIZER_STYLES); 
+            const recipe = {
+                oscillator: { type: 'square', baseFrequency: getRandomFloat(50, 1000), detune: getRandomFloat(-10, 10) }, 
+                fm: { use: Math.random() < 0.05, modulatorType: 'sine', modulatorFrequency: getRandomFloat(10, 40), modulatorDepth: getRandomFloat(5, 50) }, 
+                gainEnvelope: { attack: getRandomFloat(0.001, 0.015), decay: getRandomFloat(0.01, 0.08), sustain: getRandomFloat(0.0, 0.01), release: getRandomFloat(0.01, 0.1), peakGain: 0.20 }, 
+                filter: { use: Math.random() < 0.2, type: 'lowpass', frequency: getRandomFloat(700, 2000), q: getRandomFloat(0.7, 3), gain: 0, sweep: { use: false } },
+                noise: { use: Math.random() < 0.3, type: 'white', peakGain: getRandomFloat(0.01, 0.08) },
+                panning: { use: Math.random() < 0.1, value: getRandomFloat(-0.5, 0.5) },
+                visualizer: { baseColor: baseColor, style: vizStyle },
+                maxDuration: 0
+            };
+            recipe.maxDuration = recipe.gainEnvelope.attack + recipe.gainEnvelope.decay + (recipe.gainEnvelope.sustain > 0.001 ? getRandomFloat(0.01, 0.03) : 0) + recipe.gainEnvelope.release;
+            recipe.maxDuration = Math.max(0.03, recipe.maxDuration); 
+            return recipe;
+        }
+
+        // --- Sound Playback ---
+        function playSoundByRecipe(recipe) {
+            if (!audioContext) { initAudio(); if (!audioContext) { console.error("AudioContext failed to initialize."); return; } }
+            if (audioContext.state === 'suspended') audioContext.resume().catch(e => console.error("Error resuming AudioContext:", e));
+            currentPlayingRecipe = recipe; 
+            const now = audioContext.currentTime;
+            const soundMasterGain = audioContext.createGain(); 
+            let currentNode = soundMasterGain;
+            const carrier = audioContext.createOscillator(); carrier.type = recipe.oscillator.type; carrier.frequency.setValueAtTime(recipe.oscillator.baseFrequency, now); carrier.detune.setValueAtTime(recipe.oscillator.detune, now);
+            if (recipe.fm.use) { const modulator = audioContext.createOscillator(); modulator.type = recipe.fm.modulatorType; modulator.frequency.setValueAtTime(recipe.fm.modulatorFrequency, now); const modulatorGain = audioContext.createGain(); modulatorGain.gain.setValueAtTime(recipe.fm.modulatorDepth, now); modulator.connect(modulatorGain); modulatorGain.connect(carrier.frequency); modulator.start(now); modulator.stop(now + recipe.maxDuration + 0.1); }
+            carrier.connect(currentNode);
+            if (recipe.noise.use) { const bufferSize = audioContext.sampleRate * 2; const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate); const data = noiseBuffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1; const noiseNode = audioContext.createBufferSource(); noiseNode.buffer = noiseBuffer; noiseNode.loop = true; const noiseGain = audioContext.createGain(); noiseGain.gain.setValueAtTime(0, now); noiseGain.gain.linearRampToValueAtTime(recipe.noise.peakGain, now + recipe.gainEnvelope.attack); noiseGain.gain.setValueAtTime(recipe.noise.peakGain, now + recipe.gainEnvelope.attack + recipe.gainEnvelope.decay); noiseGain.gain.linearRampToValueAtTime(0, now + recipe.maxDuration); noiseNode.connect(noiseGain); noiseGain.connect(currentNode); noiseNode.start(now); noiseNode.stop(now + recipe.maxDuration + 0.1); }
+            if (recipe.filter.use) { const filterNode = audioContext.createBiquadFilter(); filterNode.type = recipe.filter.type; filterNode.frequency.setValueAtTime(recipe.filter.frequency, now); filterNode.Q.setValueAtTime(recipe.filter.q, now); if (['peaking', 'lowshelf', 'highshelf'].includes(filterNode.type)) filterNode.gain.setValueAtTime(recipe.filter.gain, now); if (recipe.filter.sweep.use) { const sTime = now + recipe.gainEnvelope.attack; const eTime = sTime + recipe.filter.sweep.duration; filterNode.frequency.setValueAtTime(recipe.filter.frequency, sTime); filterNode.frequency.linearRampToValueAtTime(recipe.filter.frequency * recipe.filter.sweep.targetFrequencyMultiplier, eTime); } currentNode.connect(filterNode); currentNode = filterNode; }
+            if (recipe.panning.use) { const pannerNode = audioContext.createStereoPanner(); pannerNode.pan.setValueAtTime(recipe.panning.value, now); currentNode.connect(pannerNode); currentNode = pannerNode; }
+            
+            soundMasterGain.connect(mainBus); 
+
+            soundMasterGain.gain.setValueAtTime(0, now); 
+            soundMasterGain.gain.linearRampToValueAtTime(recipe.gainEnvelope.peakGain, now + recipe.gainEnvelope.attack); 
+            soundMasterGain.gain.linearRampToValueAtTime(recipe.gainEnvelope.sustain * recipe.gainEnvelope.peakGain, now + recipe.gainEnvelope.attack + recipe.gainEnvelope.decay); 
+            const sustainEnd = now + recipe.maxDuration - recipe.gainEnvelope.release; 
+            soundMasterGain.gain.setValueAtTime(recipe.gainEnvelope.sustain * recipe.gainEnvelope.peakGain, Math.max(now + recipe.gainEnvelope.attack + recipe.gainEnvelope.decay, sustainEnd)); 
+            soundMasterGain.gain.linearRampToValueAtTime(0, now + recipe.maxDuration);
+            
+            carrier.start(now); carrier.stop(now + recipe.maxDuration + 0.1);
+            
+            setTimeout(() => { 
+                if (soundMasterGain.numberOfOutputs > 0) soundMasterGain.disconnect(); 
+                if (carrier.numberOfOutputs > 0) carrier.disconnect(); 
+                if (currentPlayingRecipe === recipe) currentPlayingRecipe = null; 
+            }, (recipe.maxDuration + 0.3) * 1000);
+        }
+        
+        // --- AudioContext and Analyser Initialization ---
+        function initAudio() {
+            if (!audioContext && (typeof AudioContext !== "undefined" || typeof webkitAudioContext !== "undefined")) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                mainBus = audioContext.createGain();
+                mainBus.connect(audioContext.destination); 
+                analyserNode = audioContext.createAnalyser();
+                analyserNode.fftSize = 512; 
+                analyserNode.smoothingTimeConstant = 0.7;
+                mainBus.connect(analyserNode); 
+                const bufferLength = analyserNode.frequencyBinCount;
+                visualizerDataArray = new Uint8Array(bufferLength);
+                waveFormDataArray = new Uint8Array(bufferLength);
+
+                if (isDesktopView) { 
+                    mediaRecorderDestinationNode = audioContext.createMediaStreamDestination();
+                    mainBus.connect(mediaRecorderDestinationNode); 
+                }
+
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().catch(e => console.error("Error resuming AudioContext on init:", e));
+                }
+                console.log("Synthboard Activated. Sample Rate:", audioContext.sampleRate);
+            } else if (!audioContext) {
+                alert("Web Audio API is not supported by this browser.");
+            }
+        }
+        
+        // --- Visualization Drawing ---
+        function drawGrid(ctx, width, height) {
+            const gridSize = isDesktopView ? 28 : 18; 
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.12)'; 
+            ctx.lineWidth = 0.5;
+            for (let x = 0.5; x < width; x += gridSize) { 
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+            }
+            for (let y = 0.5; y < height; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+            }
+        }
+
+        function drawIdleSineWave() {
+            if (!canvasCtx || !canvas.width || !canvas.height) return;
+            canvasCtx.fillStyle = '#1A1A1A'; canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+            drawGrid(canvasCtx, canvas.width, canvas.height); 
+
+            canvasCtx.lineWidth = 2; canvasCtx.strokeStyle = 'rgba(50, 255, 50, 0.6)';
+            canvasCtx.shadowColor = '#32FF32'; canvasCtx.shadowBlur = 12;
+            canvasCtx.beginPath();
+            const centerY = canvas.height / 2; const amplitude = canvas.height / 2.8;
+            const frequency = 0.028; const speed = idleWaveSpeed;
+            for (let x = 0; x < canvas.width; x++) {
+                const y = centerY + amplitude * Math.sin(x * frequency + idleWavePhase) * 0.55 + amplitude * Math.sin(x * frequency * 0.6 + idleWavePhase * 1.5 + Math.PI/2) * 0.25 + amplitude * Math.sin(x * frequency * 1.5 + idleWavePhase * 0.7 + Math.PI) * 0.2;
+                if (x === 0) canvasCtx.moveTo(x, y); else canvasCtx.lineTo(x, y);
+            }
+            canvasCtx.stroke(); canvasCtx.shadowBlur = 0;
+            idleWavePhase += speed; if (idleWavePhase > Math.PI * 2000) idleWavePhase -= Math.PI * 2000;
+        }
+
+        function drawVisualization() {
+            animationFrameId = requestAnimationFrame(drawVisualization);
+            if (!canvasCtx) return;
+
+            if (!audioContext || !analyserNode || !currentPlayingRecipe) {
+                drawIdleSineWave(); return;
+            }
+
+            canvasCtx.fillStyle = '#1A1A1A'; canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+            drawGrid(canvasCtx, canvas.width, canvas.height); 
+
+            const bufferLength = analyserNode.frequencyBinCount;
+            let barHeight; let x = 0;
+            const vizStyle = currentPlayingRecipe.visualizer.style;
+            const baseColor = currentPlayingRecipe.visualizer.baseColor;
+            const hslBase = parseHSL(baseColor) || {h:180, s:70, l:60};
+
+            // --- All 25+ Visualizer Styles Logic ---
+            // (This section is very long, so I'm keeping the structure and a few examples.
+            // The full implementation would include all 25+ distinct drawing routines here.)
+
+            if (vizStyle === 'waveForm' || vizStyle === 'filledWaveForm') {
+                analyserNode.getByteTimeDomainData(waveFormDataArray);
+                canvasCtx.lineWidth = (vizStyle === 'filledWaveForm' ? 1.5 : 2.5); canvasCtx.strokeStyle = baseColor;
+                canvasCtx.shadowColor = baseColor; canvasCtx.shadowBlur = (vizStyle === 'filledWaveForm' ? 4 : 7);
+                canvasCtx.beginPath(); const sliceWidth = canvas.width * 1.0 / bufferLength;
+                for (let i = 0; i < bufferLength; i++) { const v = waveFormDataArray[i] / 128.0; const y = v * canvas.height / 2; if (i === 0) canvasCtx.moveTo(x, y); else canvasCtx.lineTo(x, y); x += sliceWidth; }
+                canvasCtx.lineTo(canvas.width, canvas.height / 2); canvasCtx.stroke();
+                if (vizStyle === 'filledWaveForm') { canvasCtx.lineTo(canvas.width, canvas.height); canvasCtx.lineTo(0, canvas.height); canvasCtx.closePath(); const fGrad = canvasCtx.createLinearGradient(0,0,0,canvas.height); fGrad.addColorStop(0, `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, 0.4)`); fGrad.addColorStop(1, `hsla(${hslBase.h}, ${hslBase.s}%, ${Math.max(0,hslBase.l-20)}%, 0.1)`); canvasCtx.fillStyle = fGrad; canvasCtx.fill(); }
+                canvasCtx.shadowBlur = 0;
+            } else { // Frequency data based visualizers
+                analyserNode.getByteFrequencyData(visualizerDataArray);
+                const barWidth = (canvas.width / bufferLength) * (vizStyle === 'dotGrid' ? 3.5 : 2.0);
+                for (let i = 0; i < bufferLength; i++) {
+                    barHeight = visualizerDataArray[i] * (canvas.height / 255) * 0.98;
+                    switch (vizStyle) {
+                        case 'glowBars': canvasCtx.fillStyle = baseColor; canvasCtx.shadowColor = baseColor; canvasCtx.shadowBlur = 12; canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight); canvasCtx.shadowBlur = 0; break;
+                        case 'topLines': canvasCtx.strokeStyle = baseColor; canvasCtx.lineWidth = 2.5; canvasCtx.beginPath(); canvasCtx.moveTo(x, canvas.height - barHeight -1); canvasCtx.lineTo(x + barWidth, canvas.height - barHeight -1); canvasCtx.stroke(); break;
+                        case 'circlePulse': if (i === Math.floor(bufferLength / 3)) { const loud = visualizerDataArray.reduce((s, v) => s + v, 0) / bufferLength; const r = (loud / 255) * (canvas.height / 2.2) + visualizerDataArray[i] / 4; canvasCtx.beginPath(); canvasCtx.arc(canvas.width / 2, canvas.height / 2, Math.max(8, r), 0, 2 * Math.PI); const lCol = `hsl(${hslBase.h}, ${hslBase.s}%, ${Math.min(100, hslBase.l + 20)}%)`; const grad = canvasCtx.createRadialGradient(canvas.width/2, canvas.height/2, Math.max(3,r/3), canvas.width/2, canvas.height/2, Math.max(8,r)); grad.addColorStop(0, lCol); grad.addColorStop(1, baseColor); canvasCtx.fillStyle = grad; canvasCtx.globalAlpha = Math.min(1, Math.max(0.25, loud / 140)); canvasCtx.fill(); canvasCtx.globalAlpha = 1.0; } break;
+                        case 'mirroredBars': const midY = canvas.height / 2; const gradMir = canvasCtx.createLinearGradient(x, midY, x, midY - barHeight/2); gradMir.addColorStop(0, `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, 0.1)`); gradMir.addColorStop(1, baseColor); canvasCtx.fillStyle = gradMir; canvasCtx.fillRect(x, midY - barHeight / 2, barWidth, barHeight / 2); canvasCtx.fillRect(x, midY, barWidth, barHeight / 2); break;
+                        case 'radialBars': const cX = canvas.width/2, cY = canvas.height/2; const ang = (i / (bufferLength*0.85)) * Math.PI * 2; const bL = barHeight*0.75; if(i%2===0){ canvasCtx.save(); canvasCtx.translate(cX, cY); canvasCtx.rotate(ang); const rG = canvasCtx.createLinearGradient(0,0,bL,0); rG.addColorStop(0,`hsla(${hslBase.h},${hslBase.s}%,${hslBase.l}%,0.2)`); rG.addColorStop(1,baseColor); canvasCtx.fillStyle=rG; canvasCtx.fillRect(0,-barWidth/3,bL,barWidth/1.5); canvasCtx.restore(); } break;
+                        case 'dotGrid': const dS = Math.max(1.5,visualizerDataArray[i]/20); const alp = visualizerDataArray[i]/255; canvasCtx.fillStyle=`hsla(${hslBase.h},${hslBase.s}%,${hslBase.l}%,${Math.max(0.1,alp)})`; if(i%3===0){canvasCtx.beginPath(); canvasCtx.arc(x+barWidth/2,canvas.height-barHeight,dS,0,Math.PI*2); canvasCtx.fill();} break;
+                        case 'starBurst': if(i%2===0){ const lL=barHeight*1.2; const lA=visualizerDataArray[i]/255; const lAng=(i/(bufferLength/1.5))*Math.PI; canvasCtx.save(); canvasCtx.translate(canvas.width/2,canvas.height/2); canvasCtx.rotate(lAng); canvasCtx.strokeStyle=`hsla(${hslBase.h},${hslBase.s}%,${hslBase.l}%,${Math.max(0.15,lA*0.85)})`; canvasCtx.lineWidth=Math.max(1,barWidth*0.6*lA); canvasCtx.beginPath(); canvasCtx.moveTo(0,0); canvasCtx.lineTo(0,-lL); canvasCtx.stroke(); canvasCtx.restore();} break;
+                        // --- START: New Visualizer Styles ---
+                        case 'ringSpectrum': if (i % 5 === 0) { const ringRadius = (i / bufferLength) * (Math.min(canvas.width, canvas.height) / 2.2); const ringStrength = visualizerDataArray[i] / 255; canvasCtx.beginPath(); canvasCtx.arc(canvas.width / 2, canvas.height / 2, ringRadius, 0, 2 * Math.PI); canvasCtx.strokeStyle = `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, ${ringStrength * 0.8})`; canvasCtx.lineWidth = Math.max(1, ringStrength * 5); canvasCtx.stroke(); } break;
+                        case 'dancingParticles': if (i % 2 === 0) { const particleX = x + barWidth / 2; const particleY = canvas.height - (visualizerDataArray[i] / 255) * canvas.height * (0.2 + Math.random() * 0.8) ; const particleSize = Math.max(1, visualizerDataArray[i] / 30); canvasCtx.fillStyle = `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, ${visualizerDataArray[i] / 255})`; canvasCtx.beginPath(); canvasCtx.arc(particleX, particleY, particleSize, 0, Math.PI * 2); canvasCtx.fill(); } break;
+                        case 'spiralGalaxy': if (i % 3 === 0) { const angle_spi = i * 0.1 + idleWavePhase * 0.1; const radius_spi = (i / bufferLength) * (Math.min(canvas.width, canvas.height) / 2.5) + visualizerDataArray[i] / 5; const sx = canvas.width / 2 + Math.cos(angle_spi) * radius_spi; const sy = canvas.height / 2 + Math.sin(angle_spi) * radius_spi; const sSize = Math.max(1, visualizerDataArray[i] / 50); canvasCtx.fillStyle = `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, ${visualizerDataArray[i] / 255})`; canvasCtx.fillRect(sx - sSize / 2, sy - sSize / 2, sSize, sSize); } break;
+                        case 'tunnelVision': if (i % 4 === 0) { const rectSize = (1 - (i / bufferLength)) * Math.min(canvas.width, canvas.height) * 0.8; const rectStrength = visualizerDataArray[i] / 255; canvasCtx.strokeStyle = `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, ${rectStrength})`; canvasCtx.lineWidth = Math.max(1, rectStrength * 4); canvasCtx.strokeRect( (canvas.width - rectSize) / 2, (canvas.height - rectSize) / 2, rectSize, rectSize ); } break;
+                        case 'blockWave': const blockWidth = canvas.width / bufferLength; canvasCtx.fillStyle = baseColor; canvasCtx.fillRect(x, canvas.height - barHeight, blockWidth -1, barHeight); canvasCtx.fillStyle = `hsl(${hslBase.h}, ${hslBase.s}%, ${Math.min(100, hslBase.l + 15)}%)`; canvasCtx.fillRect(x, canvas.height - barHeight, blockWidth -1, barHeight * 0.1); break;
+                        case 'equalizerPillars': if (i % 4 === 0) { const pillarWidth = barWidth * 2; canvasCtx.fillStyle = baseColor; canvasCtx.fillRect(x, canvas.height - barHeight, pillarWidth, barHeight); x += pillarWidth; } break;
+                        case 'cometTail': if (i % 3 === 0 && visualizerDataArray[i] > 50) { const tailLength = visualizerDataArray[i] / 5; const startY = canvas.height - barHeight; const endY = startY - tailLength; const gradComet = canvasCtx.createLinearGradient(x + barWidth/2, startY, x + barWidth/2, endY); gradComet.addColorStop(0, baseColor); gradComet.addColorStop(1, `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, 0)`); canvasCtx.strokeStyle = gradComet; canvasCtx.lineWidth = barWidth * 0.8; canvasCtx.beginPath(); canvasCtx.moveTo(x + barWidth/2, startY); canvasCtx.lineTo(x + barWidth/2, endY); canvasCtx.stroke(); } break;
+                        case 'bouncingBalls': if (i % 5 === 0) { const ballRadius = Math.max(3, visualizerDataArray[i] / 20); const ballY = canvas.height - ballRadius - (visualizerDataArray[i] / 255) * (canvas.height - ballRadius*2); canvasCtx.fillStyle = baseColor; canvasCtx.beginPath(); canvasCtx.arc(x + barWidth / 2, ballY, ballRadius, 0, Math.PI * 2); canvasCtx.fill(); } break;
+                        case 'waterRipples': if (i % 8 === 0 && visualizerDataArray[i] > 30) { const rippleMaxRadius = visualizerDataArray[i] / 2; for (let r = 1; r < 3; r++) { canvasCtx.beginPath(); canvasCtx.arc(x + barWidth / 2, canvas.height / 2, (rippleMaxRadius / 3) * r, 0, 2 * Math.PI); canvasCtx.strokeStyle = `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, ${1 - (r/3) * (visualizerDataArray[i]/255)})`; canvasCtx.lineWidth = 1 + (1-(r/3)); canvasCtx.stroke(); } } break;
+                        case 'abstractLines': if (i % 2 === 0) { canvasCtx.beginPath(); canvasCtx.moveTo(x, canvas.height); canvasCtx.lineTo(x + barWidth / 2, canvas.height - barHeight); canvasCtx.lineTo(x + barWidth, canvas.height); canvasCtx.strokeStyle = baseColor; canvasCtx.lineWidth = 1.5; canvasCtx.stroke(); } break;
+                        case 'neonGridWave': if (i % 4 === 0) { canvasCtx.strokeStyle = baseColor; canvasCtx.shadowColor = baseColor; canvasCtx.shadowBlur = 5; canvasCtx.lineWidth = 1; const yPos = canvas.height - barHeight; canvasCtx.beginPath(); canvasCtx.moveTo(x, yPos); canvasCtx.lineTo(x + barWidth, yPos); if (visualizerDataArray[i+4]) { canvasCtx.lineTo(x + barWidth + (barWidth+1), canvas.height - (visualizerDataArray[i+4] * (canvas.height / 255) * 0.98)); } canvasCtx.stroke(); canvasCtx.shadowBlur = 0; } break;
+                        case 'frequencyFlower': if (i % 10 === 0) { const petalCount = 5 + Math.floor(visualizerDataArray[i] / 50); const petalLength = visualizerDataArray[i] / 10; const flowerX = x + barWidth / 2; const flowerY = canvas.height / 2; canvasCtx.save(); canvasCtx.translate(flowerX, flowerY); for (let p = 0; p < petalCount; p++) { canvasCtx.rotate((Math.PI * 2) / petalCount); canvasCtx.beginPath(); canvasCtx.moveTo(0,0); canvasCtx.lineTo(0, -petalLength); canvasCtx.strokeStyle = baseColor; canvasCtx.lineWidth = 2; canvasCtx.stroke(); } canvasCtx.restore(); } break;
+                        case 'orbSpectrum': const orbSize = Math.max(2, visualizerDataArray[i] / 15); canvasCtx.beginPath(); canvasCtx.arc(x + barWidth / 2, canvas.height - barHeight, orbSize, 0, Math.PI * 2); canvasCtx.fillStyle = `hsl(${(i / bufferLength) * 360}, 80%, 60%)`; canvasCtx.fill(); break;
+                        case 'stackedLines': for (let j = 0; j < barHeight; j += 5) { canvasCtx.strokeStyle = `hsla(${hslBase.h}, ${hslBase.s}%, ${hslBase.l}%, ${j/barHeight})`; canvasCtx.lineWidth = 1; canvasCtx.beginPath(); canvasCtx.moveTo(x, canvas.height - j); canvasCtx.lineTo(x + barWidth, canvas.height - j); canvasCtx.stroke(); } break;
+                        case 'pixelExplosion': if (visualizerDataArray[i] > 128 && Math.random() < 0.1) { for (let k=0; k < 5; k++) { const px = x + barWidth/2 + (Math.random() - 0.5) * 30; const py = canvas.height - barHeight + (Math.random() - 0.5) * 30; const pSize = Math.random() * 3 + 1; canvasCtx.fillStyle = baseColor; canvasCtx.fillRect(px, py, pSize, pSize); } } else { canvasCtx.fillStyle = baseColor; canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight * 0.5); } break;
+                        // --- END: New Visualizer Styles ---
+                        case 'gradientBars': default: const gradient = canvasCtx.createLinearGradient(x,canvas.height,x,canvas.height-barHeight); gradient.addColorStop(0,baseColor); gradient.addColorStop(1,`hsl(${hslBase.h},${Math.min(100,hslBase.s+20)}%,${Math.min(100,hslBase.l+20)}%)`); canvasCtx.fillStyle=gradient; canvasCtx.fillRect(x,canvas.height-barHeight,barWidth,barHeight); break;
+                    }
+                    if (vizStyle !== 'circlePulse' && vizStyle !== 'radialBars' && vizStyle !== 'starBurst' && vizStyle !== 'ringSpectrum' && vizStyle !== 'spiralGalaxy' && vizStyle !== 'tunnelVision' && vizStyle !== 'frequencyFlower' && vizStyle !== 'orbSpectrum') { x += barWidth + 1; } 
+                    else if ((vizStyle === 'circlePulse' && i === Math.floor(bufferLength / 3)) || (vizStyle === 'ringSpectrum' && i >= bufferLength - 5) || (vizStyle === 'tunnelVision' && i >= bufferLength - 4) ) { break; }
+                }
+            }
+        }
+
+        // --- Setup Functions ---
+        function setupInteractions() {
+            isDesktopView = window.innerWidth >= DESKTOP_BREAKPOINT;
+
+            document.removeEventListener('keydown', handleDesktopKeyPress);
+            document.removeEventListener('click', handleMobileTap);
+            if (exportButton) exportButton.removeEventListener('click', handleExport);
+            if (clearButton) clearButton.removeEventListener('click', handleClearTerminal);
+
+            if (isDesktopView) {
+                body.classList.add('desktop-view');
+                if (pageHeader) pageHeader.style.display = 'flex'; 
+                if (terminalWindow) terminalWindow.style.display = 'none'; 
+                if (mobileChrispirilloButton) mobileChrispirilloButton.style.display = 'none';
+                
+                document.addEventListener('keydown', handleDesktopKeyPress);
+                if (exportButton) exportButton.addEventListener('click', handleExport);
+                if (clearButton) clearButton.addEventListener('click', handleClearTerminal);
+            } else { 
+                body.classList.remove('desktop-view', 'desktop-view-interactive');
+                if (pageHeader) pageHeader.style.display = 'flex'; 
+                if (terminalWindow) terminalWindow.style.display = 'none'; 
+                if (mobileChrispirilloButton) mobileChrispirilloButton.style.display = 'block';
+                document.addEventListener('click', handleMobileTap); 
+            }
+            setupCanvas();
+        }
+        
+        function handleFirstInteraction() {
+            if (!interactionStarted) {
+                interactionStarted = true;
+                body.classList.add('interaction-started'); 
+                // The CSS class .interaction-started .page-header handles hiding the header.
+                
+                if (isDesktopView && terminalWindow) {
+                    terminalWindow.style.display = 'flex'; 
+                    if (terminalCursor) terminalCursor.style.display = 'inline'; 
+                }
+                 if (mobileChrispirilloButton && !isDesktopView) { 
+                    // Mobile @CHRISPIRILLO button remains visible even after interaction
+                    // No change needed here to hide it, its visibility is handled by setupInteractions
+                }
+                if (!audioContext) {
+                    initAudio(); 
+                }
+                if (isDesktopView && audioContext && mediaRecorderDestinationNode && (!mediaRecorder || mediaRecorder.state === "inactive")) {
+                    startRecording();
+                }
+            }
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume().catch(e => console.error("Error resuming AudioContext:", e));
+            }
+        }
+
+        function handleMobileTap(event){
+            if (event.target === mobileChrispirilloButton || (mobileChrispirilloButton && mobileChrispirilloButton.contains(event.target))) {
+                window.open('https://chrispirillo.bio.link/', '_blank');
+                return; // Don't play sound if the button itself is tapped
+            }
+            if (event.target.closest('#terminalWindow')) return; // Should not be visible on mobile anyway
+            
+            handleFirstInteraction(); 
+
+            if (audioContext) { 
+                let tempUsedHues = []; 
+                const randomVizStyle = getRandomElement(VISUALIZER_STYLES); 
+                const mobileRecipe = createRandomSoundRecipe(tempUsedHues, randomVizStyle);
+                playSoundByRecipe(mobileRecipe);
+            }
+        }
+
+        function handleDesktopKeyPress(event) {
+            const ignoredKeys = ["Shift", "Control", "Alt", "Meta", "CapsLock", "Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "ScrollLock", "Pause", "Insert", "Home", "PageUp", "Delete", "End", "PageDown", "ContextMenu", "AudioVolumeMute", "AudioVolumeDown", "AudioVolumeUp", "MediaTrackNext", "MediaTrackPrevious", "MediaStop", "MediaPlayPause", "PrintScreen", "NumLock", "ScrollLock"];
+            if (event.metaKey || event.ctrlKey || event.altKey || ignoredKeys.includes(event.key)) return;
+
+            handleFirstInteraction(); 
+
+            if (terminalOutput) { 
+                let currentText = terminalOutput.textContent;
+                if (event.key === "Backspace") {
+                    terminalOutput.textContent = currentText.slice(0, -1);
+                } else if (event.key === "Enter") {
+                    // Enter key now only plays sound, does not add newline
+                } else if (event.key.length === 1) { 
+                    terminalOutput.textContent += event.key.toUpperCase();
+                }
+                if (terminalOutputContainer) terminalOutputContainer.scrollTop = terminalOutputContainer.scrollHeight; 
+            }
+            
+            if (audioContext) { 
+                let tempUsedHues = []; 
+                const randomVizStyle = getRandomElement(VISUALIZER_STYLES); 
+                const desktopRecipe = createRandomSoundRecipe(tempUsedHues, randomVizStyle);
+                playSoundByRecipe(desktopRecipe);
+            }
+        }
+        
+        function startRecording() {
+            if (!isDesktopView || !audioContext || !mediaRecorderDestinationNode) {
+                return;
+            }
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                return; 
+            }
+            
+            recordedChunks = []; 
+            try {
+                mediaRecorder = new MediaRecorder(mediaRecorderDestinationNode.stream, { mimeType: 'audio/webm;codecs=opus' });
+                mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                mediaRecorder.onstop = () => { 
+                    console.log("Recording stopped (internally)."); 
+                }; 
+                mediaRecorder.start(); 
+                console.log("Recording started for desktop session.");
+            } catch (e) {
+                console.error("Error starting MediaRecorder:", e);
+            }
+        }
+
+
+        function handleExport() {
+            if (!isDesktopView) return;
+            const performExport = () => {
+                if (recordedChunks.length > 0) {
+                    const audioBlob = new Blob(recordedChunks, { type: 'audio/webm;codecs=opus' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const timestamp = Date.now();
+                    const randomSuffix = Math.floor(Math.random() * 1000);
+                    const filename = `synthboard_jam_${timestamp}_${randomSuffix}.webm`;
+                    
+                    const a = document.createElement('a');
+                    a.style.display = 'none'; a.href = audioUrl;
+                    a.download = filename; 
+                    document.body.appendChild(a); a.click();
+                    window.URL.revokeObjectURL(audioUrl); document.body.removeChild(a);
+                    console.log(`Export complete: ${filename}`);
+                    recordedChunks = []; 
+                    if (interactionStarted && audioContext && mediaRecorderDestinationNode) {
+                        startRecording(); 
+                    }
+                } else {
+                    alert("Nothing recorded to export. Type some keys!");
+                }
+            };
+
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.onstop = performExport; 
+                mediaRecorder.stop(); 
+                console.log("Stopping recording for export...");
+            } else { 
+                performExport(); 
+            }
+        }
+
+        function handleClearTerminal() {
+            if (!isDesktopView) return;
+            if (terminalOutput) terminalOutput.textContent = ""; 
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.onstop = () => { console.log("Recording stopped by clear."); }; 
+                mediaRecorder.stop(); 
+            }
+            recordedChunks = []; 
+            console.log("Terminal cleared and recording reset.");
+            if (interactionStarted && audioContext && mediaRecorderDestinationNode) {
+                startRecording(); 
+            }
+        }
+
+
+        // --- Initialize the Application ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setupInteractions(); 
+            
+            if (!animationFrameId) { 
+                animationFrameId = requestAnimationFrame(drawVisualization);
+            }
+        });
+        
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                const currentlyDesktop = window.innerWidth >= DESKTOP_BREAKPOINT;
+                if (currentlyDesktop !== isDesktopView) {
+                    console.log("View mode changed. Re-initializing UI.");
+                    interactionStarted = false; 
+                    body.classList.remove('interaction-started', 'desktop-view', 'desktop-view-interactive'); 
+                    if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop(); 
+                    
+                    setupInteractions(); 
+                }
+                setupCanvas(); 
+            }, 250);
+        });
+    </script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1CQ4D3VQ3L"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-1CQ4D3VQ3L');
+</script>
+
+</body>
+</html>
